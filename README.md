@@ -136,6 +136,45 @@ or start a fresh shell.
 ```bash
 python main.py --help
 ```
+or start a fresh shell.
+
+## 4.2 CLI flags
+
+```bash
+python main.py --help
+```
+
+Current flags:
+- `--provider {gemini,openai}`
+- `--model MODEL`
+- `--pdf PDF` (local PDF pipeline)
+- `--rounds ROUNDS` (dataset simulation mode)
+- `--persona-mode {fixed,dynamic}`
+- `--top-k-reviewers N` (dynamic mode)
+
+### What exactly is `--rounds` and why multiple rounds?
+`--rounds` controls how many review cycles the simulator runs in dataset mode (when `--pdf` is not used).
+
+In each round:
+1. the system samples papers,
+2. assigns reviewer triplets,
+3. runs Stage-1 and Stage-2 reviews,
+4. AC makes decisions and review-quality evaluations.
+
+Why multiple rounds:
+- reduce randomness from one-off reviewer assignment,
+- produce more stable aggregate behavior statistics,
+- compare prompt/persona behavior across repeated interactions.
+
+If you only want a quick smoke run, use `--rounds 1`.
+
+Current flags:
+- `--provider {gemini,openai}`
+- `--model MODEL`
+- `--pdf PDF` (local PDF pipeline)
+- `--rounds ROUNDS` (dataset simulation mode)
+- `--persona-mode {fixed,dynamic}`
+- `--top-k-reviewers N` (dynamic mode)
 
 Current flags:
 - `--provider {gemini,openai}`
