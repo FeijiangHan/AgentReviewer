@@ -92,6 +92,9 @@ The CLI resolves provider/model from CLI flags first, then environment variables
 
 ## 4.1 Environment variables
 
+You can configure variables in **two ways**:
+
+### Option A: export in shell (always works)
 ```bash
 # Common
 export LLM_PROVIDER=gemini           # or openai
@@ -103,11 +106,60 @@ export GEMINI_API_KEY="..."
 export OPENAI_API_KEY="..."
 ```
 
+### Option B: put them in `.env` (now supported)
+Create a `.env` file in repo root:
+```bash
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=your_key_here
+# OPENAI_API_KEY=your_openai_key
+```
+
+`main.py` loads `.env` automatically at startup.
+
+### Priority and common pitfall
+Priority is:
+1. CLI flags (`--provider`, `--model`)
+2. existing process environment variables
+3. `.env` values loaded by `main.py`
+
+So if your terminal already exported an old value, `.env` will not overwrite it.
+Use one of these to avoid confusion:
+```bash
+unset LLM_PROVIDER LLM_MODEL GEMINI_API_KEY OPENAI_API_KEY
+python main.py ...
+```
+or start a fresh shell.
+
 ## 4.2 CLI flags
 
 ```bash
 python main.py --help
 ```
+
+Current flags:
+- `--provider {gemini,openai}`
+- `--model MODEL`
+- `--pdf PDF` (local PDF pipeline)
+- `--rounds ROUNDS` (dataset simulation mode)
+- `--persona-mode {fixed,dynamic}`
+- `--top-k-reviewers N` (dynamic mode)
+
+### What exactly is `--rounds` and why multiple rounds?
+`--rounds` controls how many review cycles the simulator runs in dataset mode (when `--pdf` is not used).
+
+In each round:
+1. the system samples papers,
+2. assigns reviewer triplets,
+3. runs Stage-1 and Stage-2 reviews,
+4. AC makes decisions and review-quality evaluations.
+
+Why multiple rounds:
+- reduce randomness from one-off reviewer assignment,
+- produce more stable aggregate behavior statistics,
+- compare prompt/persona behavior across repeated interactions.
+
+If you only want a quick smoke run, use `--rounds 1`.
 
 Current flags:
 - `--provider {gemini,openai}`

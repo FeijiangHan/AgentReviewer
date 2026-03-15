@@ -11,6 +11,30 @@ GEMINI_API_KEY = ""
 OPENAI_API_KEY = ""
 
 
+def load_dotenv_file(filepath: str = '.env'):
+    """
+    Lightweight .env loader (no extra dependency required).
+    Existing environment variables are preserved and not overwritten.
+    """
+    if not os.path.exists(filepath):
+        return
+
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if line.startswith('export '):
+                line = line[len('export '):].strip()
+            if '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
 def load_papers_from_file(filepath: str):
     with open(filepath, 'r', encoding='utf-8') as f:
         return json.load(f)
@@ -59,6 +83,7 @@ def main():
     parser.add_argument('--top-k-reviewers', type=int, default=3)
     args = parser.parse_args()
 
+    load_dotenv_file()
     provider, api_key, model = resolve_runtime_config(args)
 
     print("=" * 60)
