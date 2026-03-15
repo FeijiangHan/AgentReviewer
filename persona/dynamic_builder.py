@@ -30,6 +30,11 @@ class DynamicPersonaBuilder:
                 evidence.append(f"SemanticScholar:{cand.source_signals['semanticscholar']}")
             evidence.extend(cand.evidence_references[:3])
 
+            if len(cand.publications) > 0:
+                methods.append("expects positioning against recent publication baselines")
+            if len(cand.evidence_references) >= 2:
+                concerns.append("careful citation grounding and prior-art distinction")
+
             persona_cards.append(
                 PersonaCard(
                     name=cand.name,

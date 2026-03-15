@@ -249,19 +249,144 @@ Dynamic persona mode relies on parsed reference text from PDF content.
 
 ---
 
-## 7. Dynamic Persona pipeline (Milestone D)
+## 7. Dynamic Persona end-to-end workflow (current implementation)
 
-The dynamic pipeline executes:
-1. **Reference mining** (`persona/reference_miner.py`) – extract candidate author names from references.
-2. **Identity resolution** (`persona/identity_resolver.py`) – enrich with OpenAlex/S2/Crossref signals + confidence score.
-3. **Candidate filtering** (`min_confidence`) and **top-k matching** (`persona/reviewer_matcher.py`).
-4. **Persona card synthesis** (`persona/dynamic_builder.py`) with evidence-linked fields.
-5. **Persona-conditioned reviews** (reviewer prompt override) and AC decision.
+This section documents the **actual runtime workflow** implemented in code today, including inputs, processing stages, selection gates, and output artifacts.
 
-Safety constraints:
-- Persona fields are professional/academic only.
-- Bias is represented as probabilistic and evidence-linked.
-- Fallback generic persona is used if no candidate passes filtering.
+### 7.1 Design constraints
+- Candidate reviewers are extracted **only from references** (works for anonymous/unpublished submissions).
+- The system does **not** use the submitted paper's author list to create reviewer candidates.
+- `confidence` is used for **ranking**, not hard-threshold filtering.
+- Persona usage is gated by **persona completeness validation**.
+
+### 7.2 End-to-end flowchart
+
+```mermaid
+flowchart TD
+    A[Input Paper
+Dataset item or local PDF] --> B[Ingestion & parsing]
+    B --> C[Extract references list]
+    C --> D[Reference miner
+name candidates only]
+    D --> E[Identity resolver
+OpenAlex / S2 / Crossref enrichment]
+    E --> F{LLM search enrichment enabled?
+DYNAMIC_PERSONA_USE_LLM_SEARCH=1}
+    F -- No --> G[Use resolver output]
+    F -- Yes --> H[LLMSearchEnricher
+professional public profile补全]
+    H --> G
+    G --> I[Reviewer matcher rank
+confidence as ranking signal]
+    I --> J[Dynamic persona builder
+CandidateReviewer -> PersonaCard]
+    J --> K[Persona validator
+completeness gate]
+    K --> L{Accepted cards >= top_k?}
+    L -- Yes --> M[Use accepted top_k personas]
+    L -- No --> N[Fill remaining slots with
+Generic Dynamic Reviewer fallback]
+    M --> O[Stage-1 reviews]
+    N --> O
+    O --> P[Stage-2 reviews]
+    P --> Q[AC decision]
+    Q --> R[Write outputs
+reviews / report / persona_cards / trace]
+```
+
+### 7.3 Inputs and entrypoints
+
+#### Dataset mode (`main.py` without `--pdf`)
+Required for dynamic quality:
+- `paper['content']`: paper text (or substantial summary)
+- `paper['references']`: list of reference strings
+
+Runtime path:
+- `SimulationManager._build_dynamic_reviewers()`
+- `DynamicPersonaPipeline.run_with_trace()`
+
+#### Local PDF mode (`main.py --pdf ... --persona-mode dynamic`)
+Runtime path:
+- `ingest_local_pdf()` parses full text + references
+- `_run_dynamic_persona_review()` invokes `DynamicPersonaPipeline.run_with_trace()`
+
+### 7.4 Processing stages (module-by-module)
+
+1. **Reference candidate mining**
+   - Module: `persona/reference_miner.py`
+   - Input: `references: List[str]`
+   - Output: `List[CandidateReviewer]` (name + evidence references)
+   - Notes: strips numbering, handles separators (`and`, `&`, `;`), removes `et al.`, deduplicates by normalized name.
+
+2. **Identity resolution / metadata enrichment**
+   - Module: `persona/identity_resolver.py`
+   - Uses retrieval clients (`OpenAlex`, `SemanticScholar`, `Crossref`) to populate affiliation, areas, source signals, publication hints, and a confidence signal.
+
+3. **Optional LLM search-style enrichment**
+   - Module: `persona/llm_search_enricher.py`
+   - Enabled by: `DYNAMIC_PERSONA_USE_LLM_SEARCH=1`
+   - Behavior:
+     - keeps candidate identity anchored to reference-derived names,
+     - asks provider for structured professional profile JSON,
+     - merges affiliation/areas/evidence/style/method/concern hints.
+   - If model endpoint has no search tools, this stage degrades to best-effort.
+
+4. **Ranking (no confidence hard filter)**
+   - Module: `persona/reviewer_matcher.py`
+   - `rank()` scores candidates by paper/profile token overlap + confidence signal.
+   - No confidence threshold rejection at this stage.
+
+5. **Persona synthesis**
+   - Module: `persona/dynamic_builder.py`
+   - Converts candidate data to `PersonaCard` fields:
+     - name, affiliation, research areas,
+     - methodological preferences,
+     - common concerns,
+     - style signature,
+     - potential biases,
+     - confidence + evidence sources.
+
+6. **Persona completeness validation**
+   - Module: `persona/persona_validator.py`
+   - Gate: `validate_persona_card(..., min_persona_completeness)`
+   - Records validation trace (`accepted`, `completeness_score`, `missing_dimensions`).
+
+7. **Top-k finalize + fallback**
+   - Accepted persona cards are taken up to `top_k_reviewers`.
+   - If accepted cards are insufficient, remaining slots use generic dynamic fallback reviewers.
+
+8. **Review execution**
+   - For each selected persona: stage-1 review -> stage-2 review.
+   - AC aggregates into final decision.
+
+### 7.5 Output artifacts
+
+#### Common outputs
+- `reviews.json` (review content + AC decision)
+- `report.md` (human-readable summary)
+
+#### Dynamic mode extra outputs
+- `persona_cards.json`: selected persona cards (including fallbacks if used)
+- `dynamic_persona_trace.json`: audit trace
+
+Trace includes:
+- reference extraction stats,
+- candidate stats (`raw_count`, `resolved_count`, `selected_count`, `validated_count`, `accepted_persona_count`, `final_selected_count`),
+- all candidate author records,
+- selected reviewers,
+- persona validation diagnostics,
+- backup pool,
+- fallback flag.
+
+### 7.6 Runtime knobs (dynamic mode)
+- `--top-k-reviewers N`: number of dynamic reviewers requested.
+- `DYNAMIC_PERSONA_USE_LLM_SEARCH=1`: enable optional LLM enrichment stage.
+- `min_persona_completeness` is currently set in pipeline constructor (default `0.75`).
+
+### 7.7 Known behavior and trade-offs
+- Reference quality strongly affects candidate recall.
+- LLM search enrichment quality depends on model/tool availability.
+- Keeping confidence as ranking-only improves diversity but may increase noisy candidates; persona completeness gate and fallback protect robustness.
 
 ---
 

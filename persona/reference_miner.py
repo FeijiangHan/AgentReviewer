@@ -12,9 +12,11 @@ def extract_candidate_reviewers_from_references(references: List[str]) -> List[C
     candidates = {}
     for ref in references:
         # Capture author segment before year/title separators when possible
-        segment = ref
+        segment = re.sub(r"^\s*\[?\d+\]?\.?\s*", "", ref)
         segment = re.split(r"\(\d{4}\)|\b\d{4}\b", segment, maxsplit=1)[0]
-        segment = segment.replace(" and ", ", ")
+        segment = re.sub(r"\bet\s+al\.?", "", segment, flags=re.IGNORECASE)
+        segment = segment.replace(";", ",")
+        segment = re.sub(r"\s+(and|&)\s+", ",", segment, flags=re.IGNORECASE)
         raw_names = [p.strip() for p in segment.split(",") if p.strip()]
 
         for raw in raw_names:
@@ -27,9 +29,10 @@ def extract_candidate_reviewers_from_references(references: List[str]) -> List[C
                 continue
 
             name = " ".join(tokens[:4])
-            if name not in candidates:
-                candidates[name] = CandidateReviewer(name=name, evidence_references=[ref])
+            key = re.sub(r"\s+", " ", name.lower())
+            if key not in candidates:
+                candidates[key] = CandidateReviewer(name=name, evidence_references=[ref])
             else:
-                candidates[name].evidence_references.append(ref)
+                candidates[key].evidence_references.append(ref)
 
     return list(candidates.values())

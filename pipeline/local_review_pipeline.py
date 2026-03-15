@@ -79,7 +79,8 @@ def _run_dynamic_persona_review(
     top_k: int,
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
     provider = create_provider(provider_name=provider_name, api_key=api_key, model_name=model_name)
-    pipeline = DynamicPersonaPipeline(top_k=top_k)
+    use_llm_search = os.getenv('DYNAMIC_PERSONA_USE_LLM_SEARCH', '0').lower() in {'1', 'true', 'yes'}
+    pipeline = DynamicPersonaPipeline(top_k=top_k, provider=provider, use_llm_search=use_llm_search)
     persona_cards, trace = pipeline.run_with_trace(paper_payload['content'], paper_payload.get('references', []))
 
     fallback_needed = len(persona_cards) < top_k
@@ -96,7 +97,7 @@ def _run_dynamic_persona_review(
                     style_signature='balanced, technical, evidence-focused',
                     potential_biases=['none explicitly inferred'],
                     confidence=0.3,
-                    evidence_sources=['fallback persona: insufficient candidate confidence'],
+                    evidence_sources=['fallback persona: insufficient validated persona candidates'],
                 )
             )
 

@@ -97,7 +97,8 @@ class SimulationManager:
         return placeholder, paper_url
 
     def _build_dynamic_reviewers(self, paper: Dict[str, Any], paper_content: str) -> tuple[Dict[int, LLMAgentReviewer], Dict[str, Any]]:
-        pipeline = DynamicPersonaPipeline(top_k=self.top_k_reviewers)
+        use_llm_search = os.getenv('DYNAMIC_PERSONA_USE_LLM_SEARCH', '0').lower() in {'1', 'true', 'yes'}
+        pipeline = DynamicPersonaPipeline(top_k=self.top_k_reviewers, provider=self.provider, use_llm_search=use_llm_search)
         references = paper.get('references', [])
         persona_cards, trace = pipeline.run_with_trace(paper_content, references)
 
@@ -115,7 +116,7 @@ class SimulationManager:
                         style_signature='balanced, technical, evidence-focused',
                         potential_biases=['none explicitly inferred'],
                         confidence=0.3,
-                        evidence_sources=['fallback persona: insufficient candidate confidence'],
+                        evidence_sources=['fallback persona: insufficient validated persona candidates'],
                     )
                 )
 

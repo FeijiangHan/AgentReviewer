@@ -13,6 +13,10 @@ class ReviewerMatcher:
         return {t for t in re.findall(r"[a-zA-Z]{3,}", text.lower())}
 
     def match(self, paper_text: str, candidates: List[CandidateReviewer]) -> List[CandidateReviewer]:
+        ranked = self.rank(paper_text, candidates)
+        return ranked[: self.top_k]
+
+    def rank(self, paper_text: str, candidates: List[CandidateReviewer]) -> List[CandidateReviewer]:
         paper_tokens = self._tokenize(paper_text)
 
         scored = []
@@ -24,4 +28,4 @@ class ReviewerMatcher:
             scored.append((score, cand))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        return [cand for _, cand in scored[: self.top_k]]
+        return [cand for _, cand in scored]
