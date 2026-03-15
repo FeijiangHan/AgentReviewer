@@ -9,6 +9,8 @@ from persona.models import CandidateReviewer
 from persona.reference_miner import extract_candidate_reviewers_from_references
 from persona.reviewer_matcher import ReviewerMatcher
 from persona.models import PersonaCard
+from persona.llm_search_enricher import LLMSearchEnricher
+from persona.persona_validator import validate_persona_card
 from role.simulator import SimulationManager
 from llm.base import LLMProvider
 
@@ -163,9 +165,11 @@ class MilestoneDTests(unittest.TestCase):
         original_pipeline_cls = sim_mod.DynamicPersonaPipeline
 
         class StubPipeline:
-            def __init__(self, top_k=3, min_confidence=0.35):
+            def __init__(self, top_k=3, min_confidence=0.35, provider=None, use_llm_search=False):
                 self.top_k = top_k
                 self.min_confidence = min_confidence
+                self.provider = provider
+                self.use_llm_search = use_llm_search
 
             def run_with_trace(self, paper_text, references):
                 cards = [
@@ -242,15 +246,82 @@ class MilestoneDTests(unittest.TestCase):
         self.assertTrue(trace['all_candidate_authors'][0]['name_verified'])
         self.assertTrue(trace['all_candidate_authors'][0]['affiliation_verified'])
 
+    def test_persona_validator_rejects_incomplete_card(self):
+        card = PersonaCard(
+            name='A',
+            affiliation='',
+            research_areas=['vision'],
+            methodological_preferences=['ablation'],
+            common_concerns=['novelty'],
+            style_signature='technical',
+            potential_biases=['none'],
+            confidence=0.3,
+            evidence_sources=['ref1'],
+        )
+        result = validate_persona_card(card, min_completeness=0.75)
+        self.assertFalse(result.accepted)
+        self.assertIn('affiliation', result.missing_dimensions)
+
+
+    def test_dynamic_pipeline_does_not_filter_by_confidence_threshold(self):
+        pipeline = DynamicPersonaPipeline(top_k=2, min_confidence=0.95, min_persona_completeness=0.0)
+
+        class StubResolver:
+            def resolve(self, _cands):
+                return [
+                    CandidateReviewer(name='Low A', affiliation='Inst A', confidence=0.1, research_areas=['vision', 'ml'], evidence_references=['r1']),
+                    CandidateReviewer(name='Low B', affiliation='Inst B', confidence=0.2, research_areas=['nlp', 'ml'], evidence_references=['r2']),
+                ]
+
+        pipeline.identity_resolver = StubResolver()
+        cards, trace = pipeline.run_with_trace('vision and nlp paper', ['A. 2024. X'])
+        self.assertEqual(len(cards), 2)
+        self.assertFalse(trace['candidate_stats']['confidence_filtering_enabled'])
+        self.assertEqual(trace['candidate_stats']['filtered_count'], 2)
+
+    def test_llm_search_enricher_merges_profile_fields(self):
+        class StubProvider(LLMProvider):
+            @property
+            def provider_name(self):
+                return 'stub'
+
+            @property
+            def model_name(self):
+                return 'stub-model'
+
+            def generate_json(self, system_prompt, user_prompt, response_schema=None):
+                return {
+                    'affiliation': 'Example University',
+                    'research_areas': ['vision', 'multimodal'],
+                    'methodological_preferences': ['ablation'],
+                    'common_concerns': ['rigor'],
+                    'style_signature': 'constructive',
+                    'evidence_sources': ['https://example.edu/~alice'],
+                    'confidence': 0.7,
+                }
+
+            def generate_text(self, system_prompt, user_prompt):
+                return 'stub'
+
+        enricher = LLMSearchEnricher(StubProvider())
+        cand = CandidateReviewer(name='Alice Smith', confidence=0.2, evidence_references=['ref1'])
+        out = enricher.enrich('paper text', [cand])[0]
+        self.assertEqual(out.affiliation, 'Example University')
+        self.assertIn('vision', out.research_areas)
+        self.assertIn('llm_search', out.source_signals)
+        self.assertGreaterEqual(out.confidence, 0.7)
+
     def test_dataset_dynamic_fallback_fills_top_k(self):
         import role.simulator as sim_mod
 
         original_pipeline_cls = sim_mod.DynamicPersonaPipeline
 
         class StubPipeline:
-            def __init__(self, top_k=3, min_confidence=0.35):
+            def __init__(self, top_k=3, min_confidence=0.35, provider=None, use_llm_search=False):
                 self.top_k = top_k
                 self.min_confidence = min_confidence
+                self.provider = provider
+                self.use_llm_search = use_llm_search
 
             def run_with_trace(self, paper_text, references):
                 trace = {
