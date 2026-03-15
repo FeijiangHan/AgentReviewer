@@ -11,12 +11,12 @@ class LLMAgentReviewer:
     Individual reviewer agent with a fixed persona.
     """
 
-    def __init__(self, reviewer_id: int, persona: str, provider: LLMProvider, initial_elo: float = 1500.0):
+    def __init__(self, reviewer_id: int, persona: str, provider: LLMProvider, initial_elo: float = 1500.0, persona_prompt: str | None = None):
         self.reviewer_id: int = reviewer_id
         self.persona: str = persona
         _ = initial_elo  # compatibility
 
-        self._base_system_prompt: str = self._load_persona_prompt()
+        self._base_system_prompt: str = persona_prompt if persona_prompt else self._load_persona_prompt()
         self.review_policy_prompt: str = self._load_review_policy_prompt()
         self.provider: LLMProvider = provider
         self.llm_model: str = provider.model_name

@@ -49,13 +49,14 @@ def resolve_runtime_config(args):
     return provider, api_key, model
 
 
-
 def main():
     parser = argparse.ArgumentParser(description='Agent Reviewer core pipeline')
     parser.add_argument('--provider', choices=['gemini', 'openai'], default=None)
     parser.add_argument('--model', default=None)
     parser.add_argument('--pdf', default=None, help='Local PDF path for Milestone C pipeline')
     parser.add_argument('--rounds', type=int, default=30)
+    parser.add_argument('--persona-mode', choices=['fixed', 'dynamic'], default='fixed')
+    parser.add_argument('--top-k-reviewers', type=int, default=3)
     args = parser.parse_args()
 
     provider, api_key, model = resolve_runtime_config(args)
@@ -72,6 +73,8 @@ def main():
             provider_name=provider,
             api_key=api_key,
             model_name=model,
+            persona_mode=args.persona_mode,
+            top_k_reviewers=args.top_k_reviewers,
         )
         print("\nLocal PDF review completed.")
         print(json.dumps(result, indent=2))
