@@ -1,12 +1,14 @@
 import os
 import json
+
 from role.simulator import SimulationManager
 
 # ============================================
 # Configuration: Set your API Key here
 # ============================================
-GEMINI_API_KEY = "" # Replace with your actual API key
+GEMINI_API_KEY = ""  # Replace with your actual API key
 # ============================================
+
 
 def load_papers_from_file(filepath: str):
     """
@@ -20,6 +22,7 @@ def load_papers_from_file(filepath: str):
     """
     with open(filepath, 'r', encoding='utf-8') as f:
         return json.load(f)
+
 
 def create_sample_papers():
     """
@@ -83,12 +86,13 @@ def create_sample_papers():
     ]
     return papers
 
+
 def main():
     """
-    Main function to run all three experiments.
+    Main function to run the Elo-free core review pipeline.
     """
     print("=" * 60)
-    print("ICLR Paper Review Simulation - Multi-Experiment Runner")
+    print("ICLR Paper Review Simulation - Core Pipeline Runner")
     print("=" * 60)
 
     # Step 1: Get API Key
@@ -125,13 +129,13 @@ def main():
     num_rounds = 30
     random_seed = 42
 
-    print(f"\nSimulation Configuration:")
+    print("\nSimulation Configuration:")
     print(f"  - Number of rounds: {num_rounds}")
-    print(f"  - Papers per round: 2")
-    print(f"  - Reviewers per paper: 3")
-    print(f"  - Total reviewers: 6 (bluffer, critic, expert, harmonizer, optimist, skimmer)")
+    print("  - Papers per round: 2")
+    print("  - Reviewers per paper: 3")
+    print("  - Total reviewers: 6 (bluffer, critic, expert, harmonizer, optimist, skimmer)")
     print(f"  - Random seed: {random_seed}")
-    print(f"  - Experiments to run: 1, 2, 3")
+    print("  - Mode: Core review + AC evaluation (Elo removed)")
 
     # Step 4: Create SimulationManager
     print("\nInitializing SimulationManager...")
@@ -142,24 +146,19 @@ def main():
         seed=random_seed
     )
 
-    # Step 5: Run all three experiments
+    # Step 5: Run pipeline
     print("\n" + "=" * 60)
-    print("Starting All Experiments")
+    print("Starting Core Review Pipeline")
     print("=" * 60)
-    print("\nExperiment Modes:")
-    print("  Mode 1: Baseline (AC doesn't see Elo, reviewers don't update memory)")
-    print("  Mode 2: AC sees Elo scores")
-    print("  Mode 3: AC sees Elo + Reviewers update memory")
-    print()
 
     try:
         manager.run_all_experiments()
 
         print("\n" + "=" * 60)
-        print("All Experiments Completed Successfully!")
+        print("Core Pipeline Completed Successfully!")
         print("=" * 60)
-        print(f"\nResults saved to: simulation_results.json")
-        print(f"Total results recorded: {len(manager.results)}")
+        print("\nResults saved to: simulation_results.json")
+        print(f"Total records saved: {len(manager.results)}")
 
     except Exception as e:
         print(f"\n❌ Error during simulation: {e}")
@@ -171,17 +170,17 @@ def main():
     print("\n" + "=" * 60)
     print("Summary Statistics")
     print("=" * 60)
+    print(f"\nTotal papers reviewed: {len(manager.results)}")
 
-    for exp_mode in [1, 2, 3]:
-        exp_results = [r for r in manager.results if r['experiment'] == exp_mode]
-        print(f"\nExperiment {exp_mode}:")
-        print(f"  - Total papers reviewed: {len(exp_results)}")
-        if exp_results:
-            final_elos = exp_results[-1]['elos_after_round']
-            print(f"  - Final Elo scores:")
-            for r_id, elo in sorted(final_elos.items()):
-                persona = manager.persona_names[r_id - 1]
-                print(f"    Reviewer {r_id} ({persona}): {elo:.2f}")
+    decisions = {}
+    for result in manager.results:
+        decision = result.get('ac_decision', {}).get('final_decision', 'Unknown')
+        decisions[decision] = decisions.get(decision, 0) + 1
+
+    print("Decision distribution:")
+    for decision, count in sorted(decisions.items()):
+        print(f"  - {decision}: {count}")
+
 
 if __name__ == "__main__":
     main()
