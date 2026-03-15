@@ -1,4 +1,5 @@
 import json
+import os
 import random
 from typing import Dict, List, Any, Optional
 
@@ -95,24 +96,47 @@ class SimulationManager:
         placeholder = f"Paper content not pre-parsed. Source URL: {paper_url}"
         return placeholder, paper_url
 
-    def _build_dynamic_reviewers(self, paper: Dict[str, Any], paper_content: str) -> Dict[int, LLMAgentReviewer]:
+    def _build_dynamic_reviewers(self, paper: Dict[str, Any], paper_content: str) -> tuple[Dict[int, LLMAgentReviewer], Dict[str, Any]]:
         pipeline = DynamicPersonaPipeline(top_k=self.top_k_reviewers)
-        persona_cards = pipeline.run(paper_content, paper.get('references', []))
+        references = paper.get('references', [])
+        persona_cards, trace = pipeline.run_with_trace(paper_content, references)
 
-        if not persona_cards:
-            persona_cards = [
-                PersonaCard(
-                    name='Generic Dynamic Reviewer',
-                    affiliation='Unknown',
-                    research_areas=['machine learning'],
-                    methodological_preferences=['clear empirical validation'],
-                    common_concerns=['novelty', 'rigor', 'clarity'],
-                    style_signature='balanced, technical, evidence-focused',
-                    potential_biases=['none explicitly inferred'],
-                    confidence=0.3,
-                    evidence_sources=['fallback persona: insufficient candidate confidence'],
+        fallback_needed = len(persona_cards) < self.top_k_reviewers
+        if fallback_needed:
+            start_idx = len(persona_cards) + 1
+            for idx in range(start_idx, self.top_k_reviewers + 1):
+                persona_cards.append(
+                    PersonaCard(
+                        name='Generic Dynamic Reviewer' if idx == 1 else f'Generic Dynamic Reviewer #{idx}',
+                        affiliation='Unknown',
+                        research_areas=['machine learning'],
+                        methodological_preferences=['clear empirical validation'],
+                        common_concerns=['novelty', 'rigor', 'clarity'],
+                        style_signature='balanced, technical, evidence-focused',
+                        potential_biases=['none explicitly inferred'],
+                        confidence=0.3,
+                        evidence_sources=['fallback persona: insufficient candidate confidence'],
+                    )
                 )
-            ]
+
+        trace['selected_reviewers'] = [
+            {
+                'name': c.name,
+                'affiliation': c.affiliation,
+                'research_areas': c.research_areas,
+                'confidence': c.confidence,
+                'evidence_sources': c.evidence_sources,
+                'is_fallback': c.name.startswith('Generic Dynamic Reviewer'),
+            }
+            for c in persona_cards
+        ]
+        trace['fallback_used'] = fallback_needed
+        trace['candidate_stats']['final_selected_count'] = len(persona_cards)
+        trace['paper'] = {
+            'paper_id': paper.get('id', ''),
+            'source': paper.get('source', paper.get('url', '')),
+            'content': paper_content,
+        }
 
         dynamic_reviewers: Dict[int, LLMAgentReviewer] = {}
         for idx, card in enumerate(persona_cards, start=1):
@@ -122,7 +146,17 @@ class SimulationManager:
                 provider=self.provider,
                 persona_prompt=card.to_prompt(),
             )
-        return dynamic_reviewers
+
+        return dynamic_reviewers, trace
+
+    @staticmethod
+    def _write_dynamic_trace(paper_id: str, trace: Dict[str, Any]):
+        out_dir = os.path.join('outputs', str(paper_id))
+        os.makedirs(out_dir, exist_ok=True)
+        trace_path = os.path.join(out_dir, 'dynamic_persona_trace.json')
+        with open(trace_path, 'w', encoding='utf-8') as f:
+            json.dump(trace, f, indent=2, ensure_ascii=False)
+        return trace_path
 
     def _run_single_round(self, round_num: int, available_papers: List[Dict[str, Any]], all_reviewer_ids: Optional[List[int]] = None):
         print(f"\n======== Running Round {round_num} ========")
@@ -138,8 +172,26 @@ class SimulationManager:
             paper_content, paper_label = self._get_paper_content(paper)
 
             if self.persona_mode == 'dynamic':
-                dynamic_reviewers = self._build_dynamic_reviewers(paper, paper_content)
+                dynamic_reviewers, trace = self._build_dynamic_reviewers(paper, paper_content)
                 reviewer_ids = list(dynamic_reviewers.keys())
+                ref_info = trace.get('references', {})
+                stats = trace.get('candidate_stats', {})
+                print(
+                    f"[Dynamic Persona] Paper {paper_id} references extracted: "
+                    f"{ref_info.get('extraction_success')} (count={ref_info.get('count', 0)})"
+                )
+                print(
+                    f"[Dynamic Persona] candidates raw/resolved/filtered/final: "
+                    f"{stats.get('raw_count', 0)}/{stats.get('resolved_count', 0)}/"
+                    f"{stats.get('filtered_count', 0)}/{stats.get('final_selected_count', 0)} "
+                    f"(top_k={stats.get('requested_top_k', self.top_k_reviewers)})"
+                )
+                print(
+                    "[Dynamic Persona] selected reviewers: " +
+                    ", ".join([f"{r['name']}({r['confidence']:.2f})" for r in trace.get('selected_reviewers', [])])
+                )
+                trace_path = self._write_dynamic_trace(paper_id, trace)
+                print(f"[Dynamic Persona] trace saved: {trace_path}")
                 print(f"\n--- Paper {paper_id} assigned to Dynamic Reviewers {reviewer_ids} ---")
             else:
                 if not all_reviewer_ids:

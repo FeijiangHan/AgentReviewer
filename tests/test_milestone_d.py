@@ -1,4 +1,5 @@
 import os
+import json
 import tempfile
 import unittest
 
@@ -103,7 +104,8 @@ class MilestoneDTests(unittest.TestCase):
                     'reviews': {},
                     'runtime_metadata': {'persona_mode': 'dynamic'}
                 }],
-                [{'name': 'Alice Smith', 'confidence': 0.8}]
+                [{'name': 'Alice Smith', 'confidence': 0.8}],
+                {'references': {'count': 1, 'extraction_success': True, 'items': ['r1']}, 'candidate_stats': {'final_selected_count': 1}}
             )
 
             with tempfile.TemporaryDirectory() as tmp:
@@ -116,6 +118,7 @@ class MilestoneDTests(unittest.TestCase):
                     persona_mode='dynamic',
                 )
                 self.assertTrue(os.path.exists(out['persona_cards_json']))
+                self.assertTrue(os.path.exists(out['dynamic_trace_json']))
                 self.assertTrue(os.path.exists(out['reviews_json']))
                 self.assertTrue(os.path.exists(out['report_md']))
         finally:
@@ -164,8 +167,8 @@ class MilestoneDTests(unittest.TestCase):
                 self.top_k = top_k
                 self.min_confidence = min_confidence
 
-            def run(self, paper_text, references):
-                return [
+            def run_with_trace(self, paper_text, references):
+                cards = [
                     PersonaCard(
                         name='Dyn A', affiliation='Inst A', research_areas=['vision'],
                         methodological_preferences=['empirical rigor'],
@@ -181,6 +184,13 @@ class MilestoneDTests(unittest.TestCase):
                         evidence_sources=['ref2'],
                     ),
                 ]
+                trace = {
+                    'references': {'count': len(references), 'extraction_success': True, 'items': references},
+                    'candidate_stats': {'raw_count': 2, 'resolved_count': 2, 'filtered_count': 2, 'selected_count': 2, 'requested_top_k': self.top_k},
+                    'all_candidate_authors': [],
+                    'selected_reviewers': [],
+                }
+                return cards, trace
 
         try:
             sim_mod.DynamicPersonaPipeline = StubPipeline
@@ -205,6 +215,72 @@ class MilestoneDTests(unittest.TestCase):
             md = manager.results[0]['runtime_metadata']
             self.assertEqual(md['persona_mode'], 'dynamic')
             self.assertEqual(len(md['reviewer_ids']), 2)
+            self.assertTrue(os.path.exists(os.path.join('outputs', 'p1', 'dynamic_persona_trace.json')))
+        finally:
+            sim_mod.DynamicPersonaPipeline = original_pipeline_cls
+
+    def test_dynamic_pipeline_trace_contains_verification_fields(self):
+        pipeline = DynamicPersonaPipeline(top_k=2, min_confidence=0.0)
+
+        class StubResolver:
+            def resolve(self, _cands):
+                return [
+                    CandidateReviewer(
+                        name='Alice Smith',
+                        affiliation='Uni A',
+                        confidence=0.8,
+                        source_signals={'openalex': 'A1'},
+                        evidence_references=['ref1'],
+                    )
+                ]
+
+        pipeline.identity_resolver = StubResolver()
+        cards, trace = pipeline.run_with_trace('vision paper', ['Alice Smith. 2024. Test.'])
+        self.assertEqual(len(cards), 1)
+        self.assertTrue(trace['references']['extraction_success'])
+        self.assertIn('all_candidate_authors', trace)
+        self.assertTrue(trace['all_candidate_authors'][0]['name_verified'])
+        self.assertTrue(trace['all_candidate_authors'][0]['affiliation_verified'])
+
+    def test_dataset_dynamic_fallback_fills_top_k(self):
+        import role.simulator as sim_mod
+
+        original_pipeline_cls = sim_mod.DynamicPersonaPipeline
+
+        class StubPipeline:
+            def __init__(self, top_k=3, min_confidence=0.35):
+                self.top_k = top_k
+                self.min_confidence = min_confidence
+
+            def run_with_trace(self, paper_text, references):
+                trace = {
+                    'references': {'count': len(references), 'extraction_success': False, 'items': references},
+                    'candidate_stats': {'raw_count': 0, 'resolved_count': 0, 'filtered_count': 0, 'selected_count': 0, 'requested_top_k': self.top_k},
+                    'all_candidate_authors': [],
+                    'selected_reviewers': [],
+                }
+                return [], trace
+
+        try:
+            sim_mod.DynamicPersonaPipeline = StubPipeline
+            manager = SimulationManager(
+                provider=DummyProvider(),
+                paper_list=[{'id': 'p2', 'content': 'x', 'references': []}],
+                num_rounds=1,
+                seed=1,
+                persona_mode='dynamic',
+                top_k_reviewers=3,
+            )
+            manager.num_papers_per_round = 1
+            manager.run_all_experiments(output_path='simulation_results.json')
+            md = manager.results[0]['runtime_metadata']
+            self.assertEqual(len(md['reviewer_ids']), 3)
+            trace_path = os.path.join('outputs', 'p2', 'dynamic_persona_trace.json')
+            self.assertTrue(os.path.exists(trace_path))
+            with open(trace_path, 'r', encoding='utf-8') as f:
+                trace = json.load(f)
+            self.assertTrue(trace['fallback_used'])
+            self.assertEqual(trace['candidate_stats']['final_selected_count'], 3)
         finally:
             sim_mod.DynamicPersonaPipeline = original_pipeline_cls
 

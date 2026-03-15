@@ -12,7 +12,17 @@ from role.simulator import SimulationManager
 from .ingest import ingest_local_pdf
 
 
-def _write_outputs(output_dir: str, paper_id: str, provider_name: str, model_name: str, source: str, results: List[Dict[str, Any]], references_count: int, persona_cards: List[Dict[str, Any]] | None = None) -> Dict[str, Any]:
+def _write_outputs(
+    output_dir: str,
+    paper_id: str,
+    provider_name: str,
+    model_name: str,
+    source: str,
+    results: List[Dict[str, Any]],
+    references_count: int,
+    persona_cards: List[Dict[str, Any]] | None = None,
+    dynamic_trace: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
     os.makedirs(output_dir, exist_ok=True)
     paper_out_dir = os.path.join(output_dir, paper_id)
     os.makedirs(paper_out_dir, exist_ok=True)
@@ -26,6 +36,12 @@ def _write_outputs(output_dir: str, paper_id: str, provider_name: str, model_nam
         persona_cards_path = os.path.join(paper_out_dir, 'persona_cards.json')
         with open(persona_cards_path, 'w', encoding='utf-8') as f:
             json.dump(persona_cards, f, indent=2)
+
+    dynamic_trace_path = None
+    if dynamic_trace is not None:
+        dynamic_trace_path = os.path.join(paper_out_dir, 'dynamic_persona_trace.json')
+        with open(dynamic_trace_path, 'w', encoding='utf-8') as f:
+            json.dump(dynamic_trace, f, indent=2, ensure_ascii=False)
 
     first_result = results[0] if results else {}
     decision = first_result.get('ac_decision', {}).get('final_decision', 'Unknown')
@@ -50,29 +66,58 @@ def _write_outputs(output_dir: str, paper_id: str, provider_name: str, model_nam
     }
     if persona_cards_path:
         output['persona_cards_json'] = persona_cards_path
+    if dynamic_trace_path:
+        output['dynamic_trace_json'] = dynamic_trace_path
     return output
 
 
-def _run_dynamic_persona_review(paper_payload: Dict[str, Any], provider_name: str, api_key: str, model_name: str, top_k: int) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def _run_dynamic_persona_review(
+    paper_payload: Dict[str, Any],
+    provider_name: str,
+    api_key: str,
+    model_name: str,
+    top_k: int,
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
     provider = create_provider(provider_name=provider_name, api_key=api_key, model_name=model_name)
     pipeline = DynamicPersonaPipeline(top_k=top_k)
-    persona_cards = pipeline.run(paper_payload['content'], paper_payload.get('references', []))
+    persona_cards, trace = pipeline.run_with_trace(paper_payload['content'], paper_payload.get('references', []))
 
-    if not persona_cards:
-        # fallback to one safe generic persona card
-        persona_cards = [
-            PersonaCard(
-                name='Generic Dynamic Reviewer',
-                affiliation='Unknown',
-                research_areas=['machine learning'],
-                methodological_preferences=['clear empirical validation'],
-                common_concerns=['novelty', 'rigor', 'clarity'],
-                style_signature='balanced, technical, evidence-focused',
-                potential_biases=['none explicitly inferred'],
-                confidence=0.3,
-                evidence_sources=['fallback persona: insufficient candidate confidence'],
+    fallback_needed = len(persona_cards) < top_k
+    if fallback_needed:
+        start_idx = len(persona_cards) + 1
+        for idx in range(start_idx, top_k + 1):
+            persona_cards.append(
+                PersonaCard(
+                    name='Generic Dynamic Reviewer' if idx == 1 else f'Generic Dynamic Reviewer #{idx}',
+                    affiliation='Unknown',
+                    research_areas=['machine learning'],
+                    methodological_preferences=['clear empirical validation'],
+                    common_concerns=['novelty', 'rigor', 'clarity'],
+                    style_signature='balanced, technical, evidence-focused',
+                    potential_biases=['none explicitly inferred'],
+                    confidence=0.3,
+                    evidence_sources=['fallback persona: insufficient candidate confidence'],
+                )
             )
-        ]
+
+    trace['selected_reviewers'] = [
+        {
+            'name': c.name,
+            'affiliation': c.affiliation,
+            'research_areas': c.research_areas,
+            'confidence': c.confidence,
+            'evidence_sources': c.evidence_sources,
+            'is_fallback': c.name.startswith('Generic Dynamic Reviewer'),
+        }
+        for c in persona_cards
+    ]
+    trace['fallback_used'] = fallback_needed
+    trace['candidate_stats']['final_selected_count'] = len(persona_cards)
+    trace['paper'] = {
+        'paper_id': paper_payload.get('id', ''),
+        'source': paper_payload.get('source', ''),
+        'content': paper_payload.get('content', ''),
+    }
 
     reviewers = {}
     for idx, card in enumerate(persona_cards, start=1):
@@ -130,7 +175,7 @@ def _run_dynamic_persona_review(paper_payload: Dict[str, Any], provider_name: st
         for c in persona_cards
     ]
 
-    return results, persona_cards_json
+    return results, persona_cards_json, trace
 
 
 def run_local_pdf_review(
@@ -152,7 +197,7 @@ def run_local_pdf_review(
     }
 
     if persona_mode == 'dynamic':
-        results, persona_cards = _run_dynamic_persona_review(
+        results, persona_cards, trace = _run_dynamic_persona_review(
             paper_payload=paper_payload,
             provider_name=provider_name,
             api_key=api_key,
@@ -168,6 +213,7 @@ def run_local_pdf_review(
             results=results,
             references_count=len(paper.references),
             persona_cards=persona_cards,
+            dynamic_trace=trace,
         )
 
     manager = SimulationManager.from_config(
