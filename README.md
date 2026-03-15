@@ -136,6 +136,13 @@ or start a fresh shell.
 ```bash
 python main.py --help
 ```
+or start a fresh shell.
+
+## 4.2 CLI flags
+
+```bash
+python main.py --help
+```
 
 Current flags:
 - `--provider {gemini,openai}`
@@ -169,6 +176,33 @@ Current flags:
 - `--persona-mode {fixed,dynamic}`
 - `--top-k-reviewers N` (dynamic mode)
 
+Current flags:
+- `--provider {gemini,openai}`
+- `--model MODEL`
+- `--pdf PDF` (local PDF pipeline)
+- `--rounds ROUNDS` (dataset simulation mode)
+- `--persona-mode {fixed,dynamic}`
+- `--top-k-reviewers N` (dynamic mode)
+
+> `dynamic` persona mode works in both local PDF mode and dataset mode.
+> In dataset mode, best results come from `papers.json` entries that include `content` and `references`.
+
+### What exactly is `--rounds` and why multiple rounds?
+`--rounds` controls how many review cycles the simulator runs in dataset mode (when `--pdf` is not used).
+
+In each round:
+1. the system samples papers,
+2. assigns reviewer triplets,
+3. runs Stage-1 and Stage-2 reviews,
+4. AC makes decisions and review-quality evaluations.
+
+Why multiple rounds:
+- reduce randomness from one-off reviewer assignment,
+- produce more stable aggregate behavior statistics,
+- compare prompt/persona behavior across repeated interactions.
+
+If you only want a quick smoke run, use `--rounds 1`.
+
 ---
 
 ## 5. Running guide (step-by-step)
@@ -183,6 +217,13 @@ python main.py --provider gemini --model gemini-2.5-flash --rounds 5
 
 Output:
 - `simulation_results.json`
+
+### Dataset mode with dynamic personas
+```bash
+python main.py --provider openai --model gpt-4o-mini --rounds 1 --persona-mode dynamic --top-k-reviewers 3
+```
+
+Note: for meaningful dynamic personas in dataset mode, each paper in `papers.json` should provide `content` and `references` fields.
 
 ## 5.2 Mode B: Local PDF review (fixed personas)
 
@@ -223,13 +264,16 @@ Each paper object should include:
 {
   "id": "paper_id",
   "url": "https://... or template with {paper_ID}",
-  "actual_rating": 6.5
+  "actual_rating": 6.5,
+  "content": "optional full paper text",
+  "references": ["optional reference line 1", "optional reference line 2"]
 }
 ```
 
 Notes:
 - `actual_rating` is optional for pure runtime, but recommended for analysis.
 - If URL contains `{paper_ID}`, runtime substitutes with `id`.
+- `content` + `references` are strongly recommended when using `--persona-mode dynamic` in dataset mode.
 
 ## 6.2 Local PDF requirements (ingest)
 - File must exist and be readable.
@@ -298,6 +342,10 @@ python main.py --help
 If you see provider key errors, verify:
 - `GEMINI_API_KEY` for `--provider gemini`
 - `OPENAI_API_KEY` for `--provider openai`
+
+## Dynamic personas not applied (still seeing bluffer/critic/expert...)
+- Confirm `--persona-mode dynamic` is passed.
+- In dataset mode, ensure `papers.json` includes usable `content` and `references`; otherwise persona mining may fall back to a generic dynamic reviewer.
 
 ## Dynamic personas are empty or weak
 - Check PDF extraction quality (especially references section).

@@ -7,7 +7,41 @@ from persona.dynamic_pipeline import DynamicPersonaPipeline
 from persona.models import CandidateReviewer
 from persona.reference_miner import extract_candidate_reviewers_from_references
 from persona.reviewer_matcher import ReviewerMatcher
+from persona.models import PersonaCard
+from role.simulator import SimulationManager
+from llm.base import LLMProvider
 
+
+
+class DummyProvider(LLMProvider):
+    @property
+    def provider_name(self) -> str:
+        return 'dummy'
+
+    @property
+    def model_name(self) -> str:
+        return 'dummy-model'
+
+    def generate_json(self, system_prompt, user_prompt, response_schema=None):
+        if 'Task: Make a final decision' in user_prompt:
+            return {
+                'final_justification': 'stub',
+                'final_decision': 'Accept',
+                'review_evaluation': [
+                    {'id': 'R01', 'justification': 'ok', 'score': 6},
+                    {'id': 'R02', 'justification': 'ok', 'score': 6},
+                    {'id': 'R03', 'justification': 'ok', 'score': 6},
+                ],
+            }
+        return {
+            'strengths': ['s1', 's2'],
+            'weaknesses': ['w1', 'w2'],
+            'justification': 'stub',
+            'score': '6',
+        }
+
+    def generate_text(self, system_prompt, user_prompt):
+        return 'stub'
 
 class MilestoneDTests(unittest.TestCase):
     def test_reference_miner_extracts_candidates(self):
@@ -119,6 +153,60 @@ class MilestoneDTests(unittest.TestCase):
         out = resolver.resolve([cand])[0]
         self.assertIn('crossref_doi', out.source_signals)
         self.assertIn('Canonical Title', out.publications)
+
+    def test_dataset_mode_dynamic_persona_runs(self):
+        import role.simulator as sim_mod
+
+        original_pipeline_cls = sim_mod.DynamicPersonaPipeline
+
+        class StubPipeline:
+            def __init__(self, top_k=3, min_confidence=0.35):
+                self.top_k = top_k
+                self.min_confidence = min_confidence
+
+            def run(self, paper_text, references):
+                return [
+                    PersonaCard(
+                        name='Dyn A', affiliation='Inst A', research_areas=['vision'],
+                        methodological_preferences=['empirical rigor'],
+                        common_concerns=['novelty'], style_signature='technical',
+                        potential_biases=['vision preference'], confidence=0.8,
+                        evidence_sources=['ref1'],
+                    ),
+                    PersonaCard(
+                        name='Dyn B', affiliation='Inst B', research_areas=['nlp'],
+                        methodological_preferences=['ablation'],
+                        common_concerns=['clarity'], style_signature='balanced',
+                        potential_biases=['nlp preference'], confidence=0.7,
+                        evidence_sources=['ref2'],
+                    ),
+                ]
+
+        try:
+            sim_mod.DynamicPersonaPipeline = StubPipeline
+            papers = [{
+                'id': 'p1',
+                'content': 'A paper about vision and language.',
+                'references': ['Alice Smith. 2023. X.'],
+                'actual_rating': 6.0,
+            }]
+            manager = SimulationManager(
+                provider=DummyProvider(),
+                paper_list=papers,
+                num_rounds=1,
+                seed=7,
+                persona_mode='dynamic',
+                top_k_reviewers=2,
+            )
+            manager.num_papers_per_round = 1
+            manager.run_all_experiments(output_path='simulation_results.json')
+
+            self.assertTrue(manager.results)
+            md = manager.results[0]['runtime_metadata']
+            self.assertEqual(md['persona_mode'], 'dynamic')
+            self.assertEqual(len(md['reviewer_ids']), 2)
+        finally:
+            sim_mod.DynamicPersonaPipeline = original_pipeline_cls
 
 
 

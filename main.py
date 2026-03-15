@@ -89,7 +89,7 @@ def main():
     print("=" * 60)
     print("Agent Reviewer - Core Pipeline")
     print("=" * 60)
-    print(f"Provider: {provider} | Model: {model}")
+    print(f"Provider: {provider} | Model: {model} | Persona mode: {args.persona_mode}")
 
     # Milestone C: local PDF ingest + parse + review + outputs
     if args.pdf:
@@ -122,6 +122,8 @@ def main():
         paper_list=paper_list,
         num_rounds=args.rounds,
         seed=42,
+        persona_mode=args.persona_mode,
+        top_k_reviewers=args.top_k_reviewers,
     )
 
     manager.run_all_experiments(output_path='simulation_results.json')
