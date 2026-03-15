@@ -161,6 +161,14 @@ Why multiple rounds:
 
 If you only want a quick smoke run, use `--rounds 1`.
 
+Current flags:
+- `--provider {gemini,openai}`
+- `--model MODEL`
+- `--pdf PDF` (local PDF pipeline)
+- `--rounds ROUNDS` (dataset simulation mode)
+- `--persona-mode {fixed,dynamic}`
+- `--top-k-reviewers N` (dynamic mode)
+
 ---
 
 ## 5. Running guide (step-by-step)
