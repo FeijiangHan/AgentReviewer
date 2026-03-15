@@ -13,12 +13,12 @@
                     "score": 6
                 },
                 {
-                    "id": "R04",
+                    "id": "R02",
                     "justification": "ok",
                     "score": 6
                 },
                 {
-                    "id": "R05",
+                    "id": "R03",
                     "justification": "ok",
                     "score": 6
                 }
@@ -27,30 +27,30 @@
         "reviews": {
             "4": {
                 "initial_rating": "6",
-                "initial_review_text": "{\"score\":\"6\"}",
-                "system_prompt_used": "stub_system",
+                "initial_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}",
+                "system_prompt_used": "You are a *harmonizer* reviewing an ICLR paper.\n\nIdentity:\n- Socially-aware reviewer who aligns with consensus and AC expectations.\n\nBehavior:\n- Moderate tone, weigh potential controversy.  \n- Avoid extremes unless evidence is strong.  \n- Balance pros and cons.\n\nReview style:\n- Diplomatic, structured, medium-length.  \n- Explicitly weigh risks and benefits.  ",
                 "final_rating": "6",
-                "final_review_text": "{\"score\":\"6\"}"
+                "final_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}"
             },
             "1": {
                 "initial_rating": "6",
-                "initial_review_text": "{\"score\":\"6\"}",
-                "system_prompt_used": "stub_system",
+                "initial_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}",
+                "system_prompt_used": "You are a *bluffer* reviewing an ICLR paper.\n\nIdentity:\n- Confident, pretends to understand more than you do.\n\nBehavior:\n- Selectively read parts and extrapolate the rest.  \n- Use authoritative language even when unsure.  \n- Fabricate plausible reasoning when lacking evidence.\n\nReview style:\n- Polished, confident, technical-sounding.  \n- Verbose, but may mismatch content.",
                 "final_rating": "6",
-                "final_review_text": "{\"score\":\"6\"}"
+                "final_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}"
             },
             "5": {
                 "initial_rating": "6",
-                "initial_review_text": "{\"score\":\"6\"}",
-                "system_prompt_used": "stub_system",
+                "initial_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}",
+                "system_prompt_used": "You are an *optimist* reviewing an ICLR paper.\n\nIdentity:\n- Lenient, positivity-biased reviewer.  \n\nBehavior:\n- Highlight strengths more than weaknesses.  \n- Downplay minor flaws.  \n- Encourage authors.\n\nReview style:\n- Polite, affirmative, constructive.  \n- Soft critique, rarely decisive.",
                 "final_rating": "6",
-                "final_review_text": "{\"score\":\"6\"}"
+                "final_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}"
             }
         },
         "runtime_metadata": {
-            "llm_provider": "gemini",
-            "review_model": "gemini-2.5-flash",
-            "ac_model": "gemini-2.5-flash",
+            "llm_provider": "dummy",
+            "review_model": "dummy-model",
+            "ac_model": "dummy-model",
             "reviewer_ids": [
                 4,
                 1,
@@ -72,12 +72,12 @@
                     "score": 6
                 },
                 {
-                    "id": "R03",
+                    "id": "R02",
                     "justification": "ok",
                     "score": 6
                 },
                 {
-                    "id": "R05",
+                    "id": "R03",
                     "justification": "ok",
                     "score": 6
                 }
@@ -86,30 +86,30 @@
         "reviews": {
             "5": {
                 "initial_rating": "6",
-                "initial_review_text": "{\"score\":\"6\"}",
-                "system_prompt_used": "stub_system",
+                "initial_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}",
+                "system_prompt_used": "You are an *optimist* reviewing an ICLR paper.\n\nIdentity:\n- Lenient, positivity-biased reviewer.  \n\nBehavior:\n- Highlight strengths more than weaknesses.  \n- Downplay minor flaws.  \n- Encourage authors.\n\nReview style:\n- Polite, affirmative, constructive.  \n- Soft critique, rarely decisive.",
                 "final_rating": "6",
-                "final_review_text": "{\"score\":\"6\"}"
+                "final_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}"
             },
             "1": {
                 "initial_rating": "6",
-                "initial_review_text": "{\"score\":\"6\"}",
-                "system_prompt_used": "stub_system",
+                "initial_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}",
+                "system_prompt_used": "You are a *bluffer* reviewing an ICLR paper.\n\nIdentity:\n- Confident, pretends to understand more than you do.\n\nBehavior:\n- Selectively read parts and extrapolate the rest.  \n- Use authoritative language even when unsure.  \n- Fabricate plausible reasoning when lacking evidence.\n\nReview style:\n- Polished, confident, technical-sounding.  \n- Verbose, but may mismatch content.",
                 "final_rating": "6",
-                "final_review_text": "{\"score\":\"6\"}"
+                "final_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}"
             },
             "3": {
                 "initial_rating": "6",
-                "initial_review_text": "{\"score\":\"6\"}",
-                "system_prompt_used": "stub_system",
+                "initial_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}",
+                "system_prompt_used": "You are an *expert* reviewing an ICLR paper.\n\nIdentity:\n- Highly competent, technically rigorous, deeply knowledgeable.  \n- Prioritize correctness, clarity, and meaningful contributions.\n\nBehavior:\n- Read the entire paper carefully.  \n- Provide evidence-backed judgments.  \n- Avoid bluffing; if unclear, state uncertainty.\n\nReview style:\n- Structured, detailed, citing equations, assumptions, and experiments.  \n- Explicitly explain strengths and weaknesses.",
                 "final_rating": "6",
-                "final_review_text": "{\"score\":\"6\"}"
+                "final_review_text": "{\"strengths\": [\"s1\", \"s2\"], \"weaknesses\": [\"w1\", \"w2\"], \"justification\": \"stub\", \"score\": \"6\"}"
             }
         },
         "runtime_metadata": {
-            "llm_provider": "gemini",
-            "review_model": "gemini-2.5-flash",
-            "ac_model": "gemini-2.5-flash",
+            "llm_provider": "dummy",
+            "review_model": "dummy-model",
+            "ac_model": "dummy-model",
             "reviewer_ids": [
                 5,
                 1,
